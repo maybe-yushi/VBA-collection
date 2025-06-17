@@ -1,0 +1,81 @@
+Sub MechProcessExceptionList()
+    Dim ws1 As Worksheet, ws2 As Worksheet
+    Dim lastRow1 As Long, lastRow2 As Long, row2 As Long, i As Long
+    Dim seqKey As String, maxColumn As String, maxColumnEXC As String
+    
+    Application.ScreenUpdating = False
+    
+    row2 = 2 ' start from second row in Sheet2 (after header)
+    
+    If ActiveWorkbook.Worksheets.Count > 1 Then
+        Set ws1 = ActiveWorkbook.Sheets(1)
+        Set ws2 = ActiveWorkbook.Sheets(2)
+        
+        lastRow1 = ws1.Cells(ws1.Rows.Count, "D").End(xlUp).Row
+        lastRow2 = ws1.Cells(ws2.Rows.Count, "A").End(xlUp).Row
+        
+        If ActiveWorkbook.Name Like "*_DE*" Then 'different file size depending if DA or NM
+            maxColumn = "BM"
+            maxColumnEXC = "BM"
+        Else
+            maxColumn = "AP"
+            maxColumnEXC = "AL"
+        End If
+        
+        ws2.Sort.SortFields.Clear
+        ws2.Sort.SortFields.Add2 Key:=Range("A2:A" + CStr(lastRow2) _
+            ), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+        With ws2.Sort
+            .SetRange Range("A1:" + maxColumnEXC + CStr(lastRow2))
+            .Header = xlYes
+            .MatchCase = False
+            .Orientation = xlTopToBottom
+            .SortMethod = xlPinYin
+            .Apply
+        End With
+        
+        ws1.Activate
+        ws1.AutoFilter.Sort.SortFields.Clear
+        ws1.AutoFilter.Sort.SortFields.Add2 Key:= _
+            Range("A1:A" + CStr(lastRow1)), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption _
+            :=xlSortTextAsNumbers
+        With ws1.AutoFilter.Sort
+            .Header = xlYes
+            .MatchCase = False
+            .Orientation = xlTopToBottom
+            .SortMethod = xlPinYin
+            .Apply
+        End With
+    
+        Columns("F:F").Select
+        Selection.Insert Shift:=xlToRight, CopyOrigin:=xlFormatFromLeftOrAbove
+        Range("F1").Select
+        ActiveCell.FormulaR1C1 = "Excl. Reason"
+        Columns("F:F").ColumnWidth = 25
+        
+        For i = 2 To lastRow1
+            seqKey = CStr(ws2.Cells(row2, "A").value)
+            If seqKey <> "" Then
+                Debug.Print seqKey, CStr(ws1.Cells(i, "A").value)
+                If CStr(ws1.Cells(i, "A").value) = seqKey Then
+                    Debug.Print "match", CStr(ws1.Cells(i, "A").value)
+                    ws1.Cells(i, "A").Interior.Color = RGB(255, 255, 0)
+                    ws1.Cells(i, "F").value = ws2.Cells(row2, maxColumnEXC).value
+                End If
+                If CStr(ws1.Cells(i + 1, "A").value) <> seqKey And CStr(ws1.Cells(i, "A").value) = seqKey Then
+                    Debug.Print "no match - next", i
+                    While CStr(ws2.Cells(row2, "A").value) = seqKey
+                        row2 = row2 + 1
+                    Wend
+                End If
+            Else
+                Exit For
+            End If
+        Next i
+        
+        ws1.Range("$A:$BM").AutoFilter Field:=1, Criteria1:=RGB(255, 255, 0 _
+            ), Operator:=xlFilterCellColor
+    Else
+        MsgBox "Make sure to create a second sheet and paste all the exceptions on that sheet before using this macro."
+    End If
+End Sub

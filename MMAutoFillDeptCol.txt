@@ -1,0 +1,147 @@
+Sub MMAutoFillDeptCol()
+    Dim sheetMM As Worksheet
+    Dim lastRow As Long
+    Dim groupStartRow As Long
+    Dim groupEndRow As Long
+    Dim currentRow As Long
+    Dim trimRange As Variant
+    Dim groupID As Variant
+    Dim coding As Variant
+    Dim validValues As Variant
+    Dim countOBA As Integer
+    Dim countU As Integer
+    Dim countNotU As Integer
+    Dim countOther As Integer
+    Dim isGroupEmpty As Boolean
+    validValues = Array("O", "A", "B", "RS", "X", "WM", "D", "U", "BU", "AU")
+
+    Set sheetMM = Worksheets(1)
+    If sheetMM.FilterMode = True Then
+        sheetMM.ShowAllData
+    End If
+    
+    ' Find the last row with data in column E + 1 for adjust
+    lastRow = sheetMM.Cells(Rows.Count, 5).End(xlUp).Row + 1
+    groupStartRow = 2 ' Starting at row 2 assuming row 1 has headers
+    trimRange = "C2:C" & CStr(sheetMM.Cells(lastRow, 3).Row)
+
+    Do While groupStartRow <= lastRow
+        ' Determine the end of the group
+        groupEndRow = groupStartRow + 1
+
+        Do While groupEndRow <= lastRow And Trim(sheetMM.Cells(groupEndRow, 1).value) = ""
+            groupEndRow = groupEndRow + 1
+        Loop
+        
+        groupEndRow = groupEndRow - 1 ' Adjust for the last valid row in the group
+        
+        coding = ""
+        countOBA = 0
+        countU = 0
+        countNotU = 0
+        countOther = 0
+        isGroupEmpty = True
+        
+        For currentRow = groupStartRow To groupEndRow
+            If Not Trim(sheetMM.Cells(currentRow, 2).value) = "" Then
+                isGroupEmpty = False
+                Exit For
+            End If
+        Next currentRow
+        
+        For currentRow = groupStartRow To groupEndRow
+            sheetMM.Cells(currentRow, 3).value = UCase(sheetMM.Cells(currentRow, 3).value)
+            ' Count occurrences of "OBA" and "U" in the current group
+            If Trim(UCase(sheetMM.Cells(currentRow, 3).value)) = "O" Or Trim(UCase(sheetMM.Cells(currentRow, 3).value)) = "A" Or Trim(UCase(sheetMM.Cells(currentRow, 3).value)) = "B" Then
+                countOBA = countOBA + 1
+            ElseIf Trim(UCase(sheetMM.Cells(currentRow, 3).value)) = "RS" Or Trim(UCase(sheetMM.Cells(currentRow, 3).value)) = "X" Or Trim(UCase(sheetMM.Cells(currentRow, 3).value)) = "WM" Or Trim(UCase(sheetMM.Cells(currentRow, 3).value)) = "D" Then
+                countNotU = countNotU + 1
+            ElseIf Trim(UCase(sheetMM.Cells(currentRow, 3).value)) = "U" Then
+                countU = countU + 1
+            End If
+            ' Check if there is any unallowed value in the current group
+            Dim cellValue As String
+            cellValue = Trim(UCase(sheetMM.Cells(currentRow, 3).value))
+            If cellValue <> "" And Not IsInList(cellValue, validValues) Then
+                countOther = countOther + 1
+            End If
+        Next currentRow
+        
+        ' Defines the coding of the specific group
+        If countOther > 0 Then
+            coding = "EMPTY"
+        ElseIf countOBA >= 2 Then
+            coding = "EMPTY"
+        ElseIf countU >= 1 And countNotU = 0 Then
+            coding = "U"
+        ElseIf countU >= 1 And countNotU >= 1 Then
+        'Handles both "U" and any countNotU triggers (like "RS") in the same group
+            coding = "EMPTY"
+        Else
+            If isGroupEmpty Then
+                If sheetMM.Cells(groupEndRow, 3).value = "" Then
+                    For currentRow = groupStartRow To groupEndRow - 1
+                        coding = Trim(UCase(sheetMM.Cells(currentRow, 3).value))
+                        If Not coding = "" Then
+                            If coding = "WM" And Not currentRow = groupStartRow Then
+                                coding = "EMPTY"
+                            ElseIf Not coding = "WM" And currentRow = groupStartRow Then
+                                coding = "EMPTY"
+                            End If
+                            Exit For
+                        End If
+                    Next currentRow
+                Else
+                    coding = "EMPTY"
+                End If
+            ElseIf coding = "" Then
+                coding = "EMPTY"
+            End If
+        End If
+
+        If sheetMM.Cells(groupStartRow, 14).Interior.Color = RGB(255, 255, 0) Or sheetMM.Cells(groupStartRow, 15).Interior.Color = RGB(255, 255, 0) Or sheetMM.Cells(groupStartRow, 19).Interior.Color = RGB(255, 255, 0) Or sheetMM.Cells(groupStartRow, 20).Interior.Color = RGB(255, 255, 0) Then
+            coding = "HIGHLIGHT"
+        End If
+
+        ' Assign the value in Column C of the respective coding to Column B for each row in the group
+        Select Case coding
+        Case "EMPTY"
+            For currentRow = groupStartRow To groupEndRow
+                If Trim(sheetMM.Cells(currentRow, 2).value) = "" Then sheetMM.Cells(currentRow, 2).value = ""
+            Next currentRow
+        Case "WM"
+            For currentRow = groupStartRow To groupEndRow
+                If Trim(sheetMM.Cells(currentRow, 2).value) = "" Then sheetMM.Cells(currentRow, 2).value = "RS"
+            Next currentRow
+        Case "RS"
+            For currentRow = groupStartRow To groupEndRow
+                If Trim(sheetMM.Cells(currentRow, 2).value) = "" Then sheetMM.Cells(currentRow, 2).value = "RS"
+            Next currentRow
+        Case "O", "B", "A", "BU", "U"
+            For currentRow = groupStartRow To groupEndRow
+                If Trim(sheetMM.Cells(currentRow, 2).value) = "" Then sheetMM.Cells(currentRow, 2).value = "DE"
+            Next currentRow
+        Case "AU", "HIGHLIGHT"
+            For currentRow = groupStartRow To groupEndRow
+                If Trim(sheetMM.Cells(currentRow, 2).value) = "" Then sheetMM.Cells(currentRow, 2).value = "MM"
+            Next currentRow
+        Case "D", "X"
+            For currentRow = groupStartRow To groupEndRow
+                If Trim(sheetMM.Cells(currentRow, 2).value) = "" Then sheetMM.Cells(currentRow, 2).value = "X"
+            Next currentRow
+        End Select
+        ' Move to the next group
+        groupStartRow = groupEndRow + 1
+    Loop
+End Sub
+
+Function IsInList(value As String, list As Variant) As Boolean
+    Dim i As Integer
+    For i = LBound(list) To UBound(list)
+        If list(i) = value Then
+            IsInList = True
+            Exit Function
+        End If
+    Next i
+    IsInList = False
+End Function

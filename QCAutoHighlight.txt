@@ -1,0 +1,35 @@
+Sub QCAutoHighlight()
+    Dim mainWS As Worksheet
+    Dim copyWS As Worksheet
+    Dim mainRange As Range, copyRange As Range
+    Dim mainCell As Range, copyCell As Range
+    
+    ' Check which sheet is the main one and which is the copy
+    For i = 1 To Worksheets.Count
+        If Worksheets(i).Name Like "*QC COPY*" Then
+            Set copyWS = Worksheets(i)
+        ElseIf Worksheets(i).Name Like "*Postal Code*" Then
+            Set mainWS = Worksheets(i)
+        End If
+    Next i
+    
+    ' If one sheet isn't set then stop the function
+    If mainWS Is Nothing Or copyWS Is Nothing Then
+        Exit Sub
+    Else
+        ' Set range to only used cells inside chosen area
+        Set mainRange = mainWS.Range("E2", mainWS.Range("BB" & Rows.Count).End(xlUp))
+        Set copyRange = copyWS.UsedRange
+    
+        ' Loop through each cell in the used range
+        For Each mainCell In mainRange
+            Set copyCell = copyWS.Cells(mainCell.Row, mainCell.Column)
+            
+            ' Check if values are different
+            If mainCell.value <> copyCell.value Then    ' If different, highlights cell in yellow and add a U
+                mainCell.Interior.Color = RGB(255, 255, 0)
+                mainWS.Cells(mainCell.Row, 2).value = "U"
+            End If
+        Next mainCell
+    End If
+End Sub
